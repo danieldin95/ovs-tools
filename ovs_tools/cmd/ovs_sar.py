@@ -102,10 +102,17 @@ def setup():
     x.start()
 
 
+def wait():
+    while True:
+        try:
+            time.sleep(0.5)
+        except KeyboardInterrupt:
+            return
+
+
 def main():
     setup()
-    while True:
-        time.sleep(0.5)
+    wait()
 
 
 if __name__ == '__main__':
