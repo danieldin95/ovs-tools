@@ -10,28 +10,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import shlex
 from subprocess import PIPE
 from subprocess import Popen
-from sys import platform
 
 
 def call_prog(prog, args_list):
-    cmd = [prog] + ["-vconsole:off"] + args_list
-    creationFlags = 0
-    if platform == 'win32':
-        creationFlags = 0x08000000  # CREATE_NO_WINDOW
-    output = Popen(cmd, stdout=PIPE, creationflags=creationFlags).communicate()
-    if len(output) == 0 or output[0] is None:
-        output = ""
-    else:
-        output = output[0].decode().strip()
-    return output
+    cmd = [prog] + ["-vconsole:off"] + list(args_list)
+    pipe = Popen(cmd, stdout=PIPE, stderr=PIPE)
+    output, error = pipe.communicate()
+    if pipe.returncode == 0:
+        return 0, output.decode().strip()
+    return pipe.returncode, error.decode().strip()
 
 
-def ovs_vsctl(args):
-    return call_prog("ovs-vsctl", shlex.split(args))
+def ovs_vsctl(*args):
+    return call_prog("ovs-vsctl", args)
 
 
-def ovs_ofctl(args):
-    return call_prog("ovs-ofctl", shlex.split(args))
+def ovs_ofctl(*args):
+    return call_prog("ovs-ofctl", args)
