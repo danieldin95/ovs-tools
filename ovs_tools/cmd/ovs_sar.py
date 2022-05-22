@@ -16,15 +16,25 @@ import sys
 import time
 import threading
 
-from ovs_tools.common.prog import ovs_vsctl
-from ovs_tools.common.prog import ovs_ofctl
+from subprocess import PIPE
+from subprocess import Popen
 
-parser = argparse.ArgumentParser()
-parser.add_argument("-i", "--interface", default="", type=str,
-                    help="watch on interface.")
-parser.add_argument("-n", "--interval", default=2, type=int,
-                    help="interval time per second")
-args = parser.parse_args()
+
+def call_prog(prog, args_list):
+    cmd = [prog] + ["-vconsole:off"] + list(args_list)
+    pipe = Popen(cmd, stdout=PIPE, stderr=PIPE)
+    output, error = pipe.communicate()
+    if pipe.returncode == 0:
+        return 0, output.decode().strip()
+    return pipe.returncode, error.decode().strip()
+
+
+def ovs_vsctl(*args):
+    return call_prog("ovs-vsctl", args)
+
+
+def ovs_ofctl(*args):
+    return call_prog("ovs-ofctl", args)
 
 
 def find_bridge(port):
@@ -48,14 +58,22 @@ def find_statistics(port):
         code, output = ovs_ofctl('dump-ports', bridge, port)
         if code != 0:
             raise Exception(output)
-        rx = re.findall(r"rx pkts=(\d+), bytes=(\d+), drop=(\d+), errs=(\d+)",
+        rx = re.findall(r"rx pkts=(\?|\d+), bytes=(\?|\d+), drop=(\?|\d+), errs=(\?|\d+)",
                         output, re.S)
-        tx = re.findall(r"tx pkts=(\d+), bytes=(\d+), drop=(\d+), errs=(\d+)",
+        tx = re.findall(r"tx pkts=(\?|\d+), bytes=(\?|\d+), drop=(\?|\d+), errs=(\?|\d+)",
                         output, re.S)
-        return [int(i) for i in rx[0]], [int(i) for i in tx[0]]
+        return [0 if i == '?' else int(i) for i in rx[0]], [0 if i == '?' else int(i) for i in tx[0]]
     except Exception as e:
         sys.stdout.write("%s\n" % e)
         return [0] * 4, [0] * 4
+
+
+parser = argparse.ArgumentParser()
+parser.add_argument("-i", "--interface", default="", type=str,
+                    help="watch on interface.")
+parser.add_argument("-n", "--interval", default=2, type=int,
+                    help="interval time per second")
+args = parser.parse_args()
 
 
 def run():
