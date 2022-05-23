@@ -62,7 +62,11 @@ def find_statistics(port):
                         output, re.S)
         tx = re.findall(r"tx pkts=(\?|\d+), bytes=(\?|\d+), drop=(\?|\d+), errs=(\?|\d+)",
                         output, re.S)
-        return [0 if i == '?' else int(i) for i in rx[0]], [0 if i == '?' else int(i) for i in tx[0]]
+
+        def format_stat(data):
+            return [0 if i == '?' else int(i) for i in data]
+
+        return format_stat(rx[0]), format_stat(tx[0])
     except Exception as e:
         sys.stdout.write("%s\n" % e)
         return [0] * 4, [0] * 4
@@ -84,8 +88,8 @@ def run():
                      (0, 'IFACE',
                       'rxpck/s', 'txpck/s',
                       'rxkB/s', 'txkB/s',
-                      'rxerr/s', 'txerr/s',
-                      'rxdrop/s', 'txdrop/s'))
+                      'rxdrop/s', 'txdrop/s',
+                      'rxerr/s', 'txerr/s'))
     rx0 = {}
     tx0 = {}
     for i in ports:
