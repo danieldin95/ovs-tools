@@ -12,10 +12,11 @@
 
 import argparse
 import re
-import sys
 import time
 import threading
 
+from sys import stdout
+from sys import stderr
 from subprocess import PIPE
 from subprocess import Popen
 
@@ -58,17 +59,18 @@ def find_statistics(port):
         code, output = ovs_ofctl('dump-ports', bridge, port)
         if code != 0:
             raise Exception(output)
-        rx = re.findall(r"rx pkts=(\?|\d+), bytes=(\?|\d+), drop=(\?|\d+), errs=(\?|\d+)",
-                        output, re.S)
-        tx = re.findall(r"tx pkts=(\?|\d+), bytes=(\?|\d+), drop=(\?|\d+), errs=(\?|\d+)",
-                        output, re.S)
+
+        rx = re.findall(r"rx pkts=(\?|\d+), bytes=(\?|\d+), "
+                        r"drop=(\?|\d+), errs=(\?|\d+)", output, re.S)
+        tx = re.findall(r"tx pkts=(\?|\d+), bytes=(\?|\d+), "
+                        r"drop=(\?|\d+), errs=(\?|\d+)", output, re.S)
 
         def format_stat(data):
             return [0 if i == '?' else int(i) for i in data]
 
         return format_stat(rx[0]), format_stat(tx[0])
     except Exception as e:
-        sys.stdout.write("%s\n" % e)
+        stderr.write("%s\n" % e)
         return [0] * 4, [0] * 4
 
 
@@ -80,16 +82,19 @@ parser.add_argument("-n", "--interval", default=2, type=int,
 args = parser.parse_args()
 
 
+def local_time(now):
+    return time.strftime("%H:%M:%S", time.localtime(now))
+
+
 def run():
     interval = args.interval * 1.0
     ports = args.interface.split(',')
-    start_time = time.time()
-    sys.stdout.write(('%-6.2f %-13s' + ' %-10s' * 8 + '\n') %
-                     (0, 'IFACE',
-                      'rxpck/s', 'txpck/s',
-                      'rxkB/s', 'txkB/s',
-                      'rxdrop/s', 'txdrop/s',
-                      'rxerr/s', 'txerr/s'))
+    stdout.write(('%-9s %-10s' + ' %-10s' * 8 + '\n') %
+                 ('', 'IFACE',
+                  'rxpck/s', 'txpck/s',
+                  'rxkB/s', 'txkB/s',
+                  'rxdrop/s', 'txdrop/s',
+                  'rxerr/s', 'txerr/s'))
     rx0 = {}
     tx0 = {}
     for i in ports:
@@ -103,16 +108,16 @@ def run():
             rx1[i], tx1[i] = find_statistics(i)
         dt = time.time() - record
         for i in ports:
-            sys.stdout.write(('%-6.2f %-13s' + ' %-10.2f' * 8 + '\n') %
-                             (time.time() - start_time, i,
-                              (rx1[i][0] - rx0[i][0]) / dt,
-                              (tx1[i][0] - tx0[i][0]) / dt,
-                              (rx1[i][1] - rx0[i][1]) / 1024.0 / dt,
-                              (tx1[i][1] - tx0[i][1]) / 1024.0 / dt,
-                              (rx1[i][2] - rx0[i][2]) / dt,
-                              (tx1[i][2] - tx0[i][2]) / dt,
-                              (rx1[i][3] - rx0[i][3]) / dt,
-                              (tx1[i][3] - tx0[i][3]) / dt))
+            stdout.write(('%-9s %-10s' + ' %-10.2f' * 8 + '\n') %
+                         (local_time(time.time()), i,
+                          (rx1[i][0] - rx0[i][0]) / dt,
+                          (tx1[i][0] - tx0[i][0]) / dt,
+                          (rx1[i][1] - rx0[i][1]) / 1024.0 / dt,
+                          (tx1[i][1] - tx0[i][1]) / 1024.0 / dt,
+                          (rx1[i][2] - rx0[i][2]) / dt,
+                          (tx1[i][2] - tx0[i][2]) / dt,
+                          (rx1[i][3] - rx0[i][3]) / dt,
+                          (tx1[i][3] - tx0[i][3]) / dt))
         rx0 = rx1
         tx0 = tx1
         record = time.time()
