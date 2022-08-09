@@ -17,6 +17,7 @@ import fcntl
 import os
 import pwd
 from random import randint
+import signal
 import struct
 import subprocess
 import sys
@@ -469,6 +470,17 @@ def main():
         print("ERROR: Mirror port (%s) exists for port %s." %
               (mirror_interface, interface))
         sys.exit(1)
+
+    def signal_handler(_signo, _stack_frame):
+        ovsdb.destroy_mirror(interface, ovsdb.port_bridge(interface))
+        ovsdb.destroy_port(mirror_interface, ovsdb.port_bridge(interface))
+
+        sys.exit(0)
+
+    if sys.platform in ['linux', 'linux2']:
+        signal.signal(signal.SIGHUP, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
+
     try:
         ovsdb.make_port(mirror_interface, ovsdb.port_bridge(interface))
         ovsdb.bridge_mirror(interface, mirror_interface,
