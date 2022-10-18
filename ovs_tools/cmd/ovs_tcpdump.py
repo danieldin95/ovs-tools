@@ -44,6 +44,7 @@ try:
     from ovs import jsonrpc
     from ovs.poller import Poller
     from ovs.stream import Stream
+    from ovs.fatal_signal import add_hook
 except Exception:
     print("ERROR: Please install the correct Open vSwitch python support")
     print("       libraries (version 2.16.90).")
@@ -390,6 +391,22 @@ def py_which(executable):
                for path in os.environ["PATH"].split(os.pathsep))
 
 
+def teardown(db_sock, interface, mirror_interface):
+    def cleanup_mirror():
+        try:
+            ovsdb = OVSDB(db_sock)
+            ovsdb.destroy_mirror(interface, ovsdb.port_bridge(interface))
+            ovsdb.destroy_port(mirror_interface, ovsdb.port_bridge(interface))
+        except Exception:
+            print("Unable to tear down the ports and mirrors.")
+            print("Please use ovs-vsctl to remove the ports and mirrors"
+                  " created.")
+            print(" ex: ovs-vsctl --db=%s del-port %s" % (db_sock,
+                                                          mirror_interface))
+
+    add_hook(cleanup_mirror, None, True)
+
+
 def main():
     db_sock = 'unix:/var/run/openvswitch/db.sock'
     interface = None
@@ -471,15 +488,7 @@ def main():
               (mirror_interface, interface))
         sys.exit(1)
 
-    def signal_handler(_signo, _stack_frame):
-        ovsdb.destroy_mirror(interface, ovsdb.port_bridge(interface))
-        ovsdb.destroy_port(mirror_interface, ovsdb.port_bridge(interface))
-
-        sys.exit(0)
-
-    if sys.platform in ['linux', 'linux2']:
-        signal.signal(signal.SIGHUP, signal_handler)
-    signal.signal(signal.SIGTERM, signal_handler)
+    teardown(db_sock, interface, mirror_interface)
 
     try:
         ovsdb.make_port(mirror_interface, ovsdb.port_bridge(interface))
@@ -488,10 +497,6 @@ def main():
                             mirror_select_all)
     except OVSDBException as oe:
         print("ERROR: Unable to properly setup the mirror: %s." % str(oe))
-        try:
-            ovsdb.destroy_port(mirror_interface, ovsdb.port_bridge(interface))
-        except Exception:
-            pass
         sys.exit(1)
 
     pipes = _doexec(*([dump_cmd, '-i', mirror_interface] + tcpdargs))
@@ -505,15 +510,6 @@ def main():
     except KeyboardInterrupt:
         if pipes.poll() is None:
             pipes.terminate()
-
-        ovsdb.destroy_mirror(interface, ovsdb.port_bridge(interface))
-        ovsdb.destroy_port(mirror_interface, ovsdb.port_bridge(interface))
-    except Exception:
-        print("Unable to tear down the ports and mirrors.")
-        print("Please use ovs-vsctl to remove the ports and mirrors created.")
-        print(" ex: ovs-vsctl --db=%s del-port %s" % (db_sock,
-                                                      mirror_interface))
-        sys.exit(1)
 
     sys.exit(0)
 
